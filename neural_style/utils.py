@@ -39,7 +39,7 @@ def tensor_save_rgbimage(tensor, filename, cuda=False):
     img = Image.fromarray(img)
     img.save(filename)
 
-def tensor_ret_rgbimage(tensor, filename, cuda=False):
+def tensor_ret_rgbimage(tensor, cuda=False):
     if cuda:
         img = tensor.clone().cpu().clamp(0, 255).numpy()
     else:
@@ -54,10 +54,10 @@ def tensor_save_bgrimage(tensor, filename, cuda=False):
     tensor = torch.cat((r, g, b))
     tensor_save_rgbimage(tensor, filename, cuda)
 
-def tensor_ret_bgrimage(tensor, filename, cuda=False):
+def tensor_ret_bgrimage(tensor, cuda=False):
     (b, g, r) = torch.chunk(tensor, 3)
     tensor = torch.cat((r, g, b))
-    return tensor_ret_rgbimage(tensor, filename, cuda)
+    return tensor_ret_rgbimage(tensor, cuda)
 
 
 def gram_matrix(y):

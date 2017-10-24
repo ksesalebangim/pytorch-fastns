@@ -22,7 +22,8 @@ def train(args):
 
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
-        kwargs = {'num_workers': 0, 'pin_memory': False}
+        #kwargs = {'num_workers': 0, 'pin_memory': False}
+        kwargs = {'num_workers': 4, 'pin_memory': True}
     else:
         kwargs = {}
 
@@ -176,6 +177,7 @@ def main():
                                   help="learning rate, default is 0.001")
     train_arg_parser.add_argument("--log-interval", type=int, default=500,
                                   help="number of images after which the training loss is logged, default is 500")
+    train_arg_parser.add_argument("--cudnn-benchmark", action="store_true", help="use cudnn benchmark mode")
 
     eval_arg_parser = subparsers.add_parser("eval", help="parser for evaluation/stylizing arguments")
     eval_arg_parser.add_argument("--content-image", type=str, required=True,
@@ -188,6 +190,7 @@ def main():
                                  help="saved model to be used for stylizing the image")
     eval_arg_parser.add_argument("--cuda", type=int, required=True,
                                  help="set it to 1 for running on GPU, 0 for CPU")
+    eval_arg_parser.add_argument("--cudnn-benchmark", action="store_true", help="use cudnn benchmark mode")
 
     args = main_arg_parser.parse_args()
 
@@ -198,6 +201,10 @@ def main():
     if args.cuda and not torch.cuda.is_available():
         print("ERROR: cuda is not available, try running on CPU")
         sys.exit(1)
+
+    if args.cuda and args.cudnn_benchmark:
+        print("Enabling cudnn benchmark mode")
+        torch.backends.cudnn.benchmark = True
 
     if args.subcommand == "train":
         check_paths(args)

@@ -13,6 +13,7 @@ from torchvision import transforms
 
 import utils
 from transformer_net import TransformerNet
+from networks import ResNeXtNet
 from vgg16 import Vgg16
 
 
@@ -35,6 +36,7 @@ def train(args):
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, **kwargs)
 
     transformer = TransformerNet()
+    #transformer = ResNeXtNet()
     optimizer = Adam(transformer.parameters(), args.lr)
     mse_loss = torch.nn.MSELoss()
 

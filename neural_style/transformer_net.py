@@ -1,9 +1,15 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
 
 class TransformerNet(torch.nn.Module):
+    """
+    loss after 10k1 2-epoch train:
+    content: 446286.357956  style: 136966.180045    total: 583252.538001
+    time to train: 19m
+    """
     def __init__(self):
         super(TransformerNet, self).__init__()
 
@@ -45,6 +51,7 @@ class TransformerNet(torch.nn.Module):
         y = self.relu(self.in4(self.deconv1(y)))
         y = self.relu(self.in5(self.deconv2(y)))
         y = self.deconv3(y)
+
         return y
 
 
@@ -82,7 +89,6 @@ class ResidualBlock(torch.nn.Module):
         out = out + residual
         return out
 
-
 class UpsampleConvLayer(torch.nn.Module):
     """UpsampleConvLayer
     Upsamples the input and then does a convolution. This method gives better results
@@ -107,15 +113,17 @@ class UpsampleConvLayer(torch.nn.Module):
         out = self.conv2d(out)
         return out
 
+#TODO: hack
+InstanceNormalization = nn.InstanceNorm2d
 
-class InstanceNormalization(torch.nn.Module):
+class InstanceNormalization_(torch.nn.Module):
     """InstanceNormalization
     Improves convergence of neural-style.
     ref: https://arxiv.org/pdf/1607.08022.pdf
     """
 
     def __init__(self, dim, eps=1e-9):
-        super(InstanceNormalization, self).__init__()
+        super(InstanceNormalization_, self).__init__()
         self.scale = nn.Parameter(torch.FloatTensor(dim))
         self.shift = nn.Parameter(torch.FloatTensor(dim))
         self.eps = eps

@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-import time
 
 import numpy as np
 import torch
@@ -10,13 +9,10 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torchvision import datasets
 from torchvision import transforms
-import time
 import utils
 from transformer_net import TransformerNet
-from vgg16 import Vgg16
 from PIL import Image
 import os
-import time
 import numpy as np
 import cv2
 
@@ -39,6 +35,9 @@ def stylize(args):
     style_model = TransformerNet()
     style_model.load_state_dict(torch.load(args.model))
     cam = cv2.VideoCapture(0)
+    if args.cuda:
+        style_model.cuda()
+
     while True:
         ret_val, img13 = cam.read()
         content_image = utils.tensor_load_rgbimage_cam(img13, scale=args.content_scale)
@@ -47,12 +46,7 @@ def stylize(args):
             content_image = content_image.cuda()
         content_image2 = Variable(utils.preprocess_batch(content_image), volatile=True)
 
-
-        if args.cuda:
-            style_model.cuda()
-
         output = style_model(content_image2)
-
 
         im = utils.tensor_ret_bgrimage(output.data[0], args.cuda)
         cv2.imshow('frame',im)

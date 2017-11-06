@@ -6,7 +6,6 @@ from PIL import Image
 from torch.autograd import Variable
 from torch.utils.serialization import load_lua
 
-from vgg16 import Vgg16
 
 
 def tensor_load_rgbimage(filename, size=None, scale=None):
@@ -87,6 +86,7 @@ def preprocess_batch(batch):
 
 
 def init_vgg16(model_folder):
+    from vgg16 import Vgg16
     if not os.path.exists(os.path.join(model_folder, 'vgg16.weight')):
         if not os.path.exists(os.path.join(model_folder, 'vgg16.t7')):
             os.system(

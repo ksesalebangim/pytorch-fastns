@@ -15,7 +15,20 @@ from PIL import Image
 import os
 import numpy as np
 import cv2
-
+from PIL import Image
+import subprocess
+def getRez():
+    cmd = ['xrandr']
+    cmd2 = ['grep', '*']
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    p2 = subprocess.Popen(cmd2, stdin=p.stdout, stdout=subprocess.PIPE)
+    p.stdout.close()
+     
+    resolution_string, junk = p2.communicate()
+    resolution = resolution_string.split()[0].decode("utf-8") 
+    print(resolution)
+    width, height = resolution.split('x')
+    return [int(str(width)), int(str(height))]
 
 def check_paths(args):
     try:
@@ -37,9 +50,11 @@ def stylize(args):
     cam = cv2.VideoCapture(0)
     if args.cuda:
         style_model.cuda()
+    rez = getRez()
 
     while True:
         ret_val, img13 = cam.read()
+        img13=cv2.flip(img13,1)
         content_image = utils.tensor_load_rgbimage_cam(img13, scale=args.content_scale)
         content_image = content_image.unsqueeze(0)
         if args.cuda:
@@ -49,6 +64,9 @@ def stylize(args):
         output = style_model(content_image2)
 
         im = utils.tensor_ret_bgrimage(output.data[0], args.cuda)
+        im = cv2.resize(im, (rez[0], rez[1]), interpolation=cv2.INTER_CUBIC)
+        cv2.namedWindow("frame", cv2.WND_PROP_FULLSCREEN)
+        cv2.setWindowProperty("frame", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
         cv2.imshow('frame',im)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break

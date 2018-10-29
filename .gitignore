@@ -1,2 +1,7 @@
 __pycache__
 **/*.pyc
+saved-models/**
+images/**
+vgg/**
+neural_style (copy)/**
+neural_style (another copy)/**

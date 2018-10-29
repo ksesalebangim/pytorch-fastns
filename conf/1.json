@@ -1,0 +1,9 @@
+[
+	{"model":"saved-models/79_poly_dog.jpg.trained_5_1_30_size_512_dataset_coco.model","buffer":15,"scale":30},
+	{"model":"saved-models/54_organic_by_suicidebysafetypin-d4w93sw.jpg.trained_1_1_15_size_512_dataset_coco.model","buffer":15,"scale":30},
+	{"model":"saved-models/53_trippy-eyes-alex-grey.jpg.trained_1_1_15_size_512_dataset_coco.model","buffer":15,"scale":30, "sleep": 0.01},
+	{"model":"saved-models/439_ovm-fungi_detail.jpg.trained.jpg.trained_1_1_31_size_512_dataset_coco.model","buffer":15,"scale":30,"sleep": 0.02},
+	{"model":"saved-models/45_4e5348785137b686683ff309991d6fd6.jpg.trained_1_1_15_size_512_dataset_coco.model","buffer":15,"scale":30},
+	{"model":"saved-models/40_neon_lion_by_theferraci-d6y30q0.jpg.trained_1_1_15_size_512_dataset_coco.model","buffer":15,"scale":30,"sleep": 0.005},
+	{"model":"saved-models/534_roundLetterWork.jpg.trained_1_1_31_size_512_dataset_coco.model","buffer":15,"scale":30}
+]

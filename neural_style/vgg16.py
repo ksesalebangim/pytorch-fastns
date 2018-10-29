@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class Vgg16(torch.nn.Module):
     def __init__(self):
         super(Vgg16, self).__init__()
@@ -23,6 +22,7 @@ class Vgg16(torch.nn.Module):
         self.conv5_1 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
         self.conv5_2 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
         self.conv5_3 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+        
 
     def forward(self, X):
         h = F.relu(self.conv1_1(X))
@@ -46,4 +46,8 @@ class Vgg16(torch.nn.Module):
         h = F.relu(self.conv4_3(h))
         relu4_3 = h
 
-        return [relu1_2, relu2_2, relu3_3, relu4_3]
+        h = F.relu(self.conv5_1(h))
+        h = F.relu(self.conv5_2(h))
+        relu5_2 = h
+
+        return [relu1_2, relu2_2, relu3_3, relu4_3, relu5_2]

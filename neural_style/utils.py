@@ -6,8 +6,9 @@ from PIL import Image
 from torch.autograd import Variable
 from torch.utils.serialization import load_lua
 
-
-
+ImageANTIALIAS = Image.ANTIALIAS
+torch_chunk = torch.chunk
+torch_cat = torch.cat
 def tensor_load_rgbimage(filename, size=None, scale=None):
     img = Image.open(filename)
     if size is not None:
@@ -18,14 +19,19 @@ def tensor_load_rgbimage(filename, size=None, scale=None):
     img = torch.from_numpy(img).float()
     return img
 
-def tensor_load_rgbimage_cam(mImg, size=None, scale=None):
-    img = mImg
-    if size is not None:
-        img = img.resize((size, size), Image.ANTIALIAS)
-    elif scale is not None:
-        img = img.resize((int(img.size[0] / scale), int(img.size[1] / scale)), Image.ANTIALIAS)
+def tensor_load_rgbimage_cam(img, size=None, scale=None):
+
+    #img = mImg
+    #print(scale)
+    #if size is not None:
+    #    img = img.resize((size, size), )
+    #elif scale is not None:
+    #    print(img.size[0])
+    #    img = img.resize((int(img.size[0] / scale), int(img.size[1] / scale)), Image.ANTIALIAS)
     img = np.array(img).transpose(2, 0, 1)
     img = torch.from_numpy(img).float()
+    #if scale is not None or scale != 1:
+    #    img = img.resize((int(img[0].size[0] / scale), int(img[0].size[1] / scale)), Image.ANTIALIAS)
     return img
 
 
@@ -54,8 +60,8 @@ def tensor_save_bgrimage(tensor, filename, cuda=False):
     tensor_save_rgbimage(tensor, filename, cuda)
 
 def tensor_ret_bgrimage(tensor, cuda=False):
-    (b, g, r) = torch.chunk(tensor, 3)
-    tensor = torch.cat((r, g, b))
+    (b, g, r) = torch_chunk(tensor, 3)
+    tensor = torch_cat((b, g, r))
     return tensor_ret_rgbimage(tensor, cuda)
 
 
@@ -79,8 +85,8 @@ def subtract_imagenet_mean_batch(batch):
 
 def preprocess_batch(batch):
     batch = batch.transpose(0, 1)
-    (r, g, b) = torch.chunk(batch, 3)
-    batch = torch.cat((b, g, r))
+    (r, g, b) = torch_chunk(batch, 3)
+    batch = torch_cat((b, g, r))
     batch = batch.transpose(0, 1)
     return batch
 

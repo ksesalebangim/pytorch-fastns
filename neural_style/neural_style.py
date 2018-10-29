@@ -15,12 +15,39 @@ import utils
 from transformer_net import TransformerNet
 from networks import ResNeXtNet
 from vgg16 import Vgg16
+import mysql.connector
+import os.path
 
+import sys
+
+def getEpoch(filename):
+    return int(filename.split("/")[-1].split("@@@@@@")[1])
 
 def train(args):
+    cnx = mysql.connector.connect(user='root', database='midburn',password='midburn')
+    serialNumFile = "serialNum.txt"
+    serial = 0
+    if os.path.isfile(serialNumFile):
+        t = open(serialNumFile,"r")
+        serial = int(t.read())
+        t.close()
+    serial +=  1
+    t = open(serialNumFile,"w")
+    t.write(str(serial))
+    t.close()
+        
+    cursor = cnx.cursor()
+    location = args.dataset.split("/")
+    if location[-1]=="":
+        location=location[-2]
+    else:
+        location=location[-1]
+    save_model_filename = str(serial)+"_"+extractName(args.style_image)+"_"+str(args.epochs) + "_" + str(int(
+        args.content_weight)) + "_" + str(int(args.style_weight)) +"_size_"+str(args.image_size)+"_dataset_"+str(location)+ ".model"
+    print(save_model_filename)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-
+    m_epoch = 0
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
         #kwargs = {'num_workers': 0, 'pin_memory': False}
@@ -47,7 +74,11 @@ def train(args):
     if args.cuda:
         transformer.cuda()
         vgg.cuda()
-
+    if args.model is not None:
+        transformer.load_state_dict(torch.load(args.model))
+        save_model_filename = save_model_filename + "@@@@@@"+str(int(getEpoch(args.model))+int(args.epochs))
+        m_epoch+=int(getEpoch(args.model))
+        print("loaded model\n")
     style = utils.tensor_load_rgbimage(args.style_image, size=args.style_size)
     style = style.repeat(args.batch_size, 1, 1, 1)
     style = utils.preprocess_batch(style)
@@ -57,6 +88,12 @@ def train(args):
     style_v = utils.subtract_imagenet_mean_batch(style_v)
     features_style = vgg(style_v)
     gram_style = [utils.gram_matrix(y) for y in features_style]
+
+
+    q1 = ("REPLACE INTO `images`(`name`) VALUES ('"+args.style_image+"')")
+    cursor.execute(q1)
+    cnx.commit()
+    imgId = cursor.lastrowid
 
     for e in range(args.epochs):
         transformer.train()
@@ -97,26 +134,34 @@ def train(args):
 
             agg_content_loss += content_loss.data[0]
             agg_style_loss += style_loss.data[0]
-
             if (batch_id + 1) % args.log_interval == 0:
-                mesg = "{}\tEpoch {}:\t[{}/{}]\tcontent: {:.6f}\tstyle: {:.6f}\ttotal: {:.6f}".format(
+                q1 = ("REPLACE INTO `statistics`(`imgId`,`epoch`, `iteration_id`, `content_loss`, `style_loss`, `loss`) VALUES ("+str(imgId)+","+str(int(e)+m_epoch)+","+str(batch_id)+","+str(agg_content_loss / (batch_id + 1))+","+str(agg_style_loss / (batch_id + 1))+","+str((agg_content_loss + agg_style_loss) / (batch_id + 1))+")")
+                cursor.execute(q1)
+                cnx.commit()
+                mesg = "{}\tEpoch {}:\t[{}/{}]\tcontent: {:.6f}\tstyle: {:.6f}\ttotal: {:.6f}\n".format(
                     time.ctime(), e + 1, count, len(train_dataset),
                                   agg_content_loss / (batch_id + 1),
                                   agg_style_loss / (batch_id + 1),
                                   (agg_content_loss + agg_style_loss) / (batch_id + 1)
                 )
+                sys.stdout.flush()
                 print(mesg)
 
     # save model
     transformer.eval()
     transformer.cpu()
-    save_model_filename = "epoch_" + str(args.epochs) + "_" + str(time.ctime()).replace(' ', '_') + "_" + str(
-        args.content_weight) + "_" + str(args.style_weight) + ".model"
+    
     save_model_path = os.path.join(args.save_model_dir, save_model_filename)
     torch.save(transformer.state_dict(), save_model_path)
 
     print("\nDone, trained model saved at", save_model_path)
 
+def extractName(nameAndPath):
+    splitted = nameAndPath.split("/")
+    if len(splitted) == 1:
+        return splitted[0]
+    print(splitted[-1])
+    return splitted[-1]
 
 def check_paths(args):
     try:
@@ -180,6 +225,8 @@ def main():
     train_arg_parser.add_argument("--log-interval", type=int, default=500,
                                   help="number of images after which the training loss is logged, default is 500")
     train_arg_parser.add_argument("--cudnn-benchmark", action="store_true", help="use cudnn benchmark mode")
+    train_arg_parser.add_argument("--model", type=str, default=None,
+                                  help="continue training a model")
 
     eval_arg_parser = subparsers.add_parser("eval", help="parser for evaluation/stylizing arguments")
     eval_arg_parser.add_argument("--content-image", type=str, required=True,
@@ -217,3 +264,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+#python neural_style/neural_style.py eval --content-image /media/midburn/benson2/pytorch/pytorch-fastns/baseline.jpg --model saved-models/pink.model --output-image /home/midburn/test.jpg --cuda 1

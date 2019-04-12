@@ -16,6 +16,9 @@ class ResNeXtNet(torch.nn.Module):
         # Initial convolution layers
         self.conv1 = ConvLayer(3, 32, kernel_size=9, stride=1)
         self.in1 = nn.InstanceNorm2d(32)
+        #self.conv1 = ResNeXtBottleneck(3, 32, stride=1)
+        self.conv2 = ResNeXtBottleneck(32, 64, stride=2)
+        self.conv3 = ResNeXtBottleneck(64, 128, stride=2)
         self.conv2 = ConvLayer(32, 64, kernel_size=3, stride=2)
         self.in2 = nn.InstanceNorm2d(64)
         self.conv3 = ConvLayer(64, 128, kernel_size=3, stride=2)
@@ -36,13 +39,16 @@ class ResNeXtNet(torch.nn.Module):
         self.deconv3 = ConvLayer(32, 3, kernel_size=9, stride=1)
 
         # Non-linearities
-        self.relu = nn.ReLU()
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, X):
         in_X = X
         y = self.relu(self.in1(self.conv1(in_X)))
-        y = self.relu(self.in2(self.conv2(y)))
-        y = self.relu(self.in3(self.conv3(y)))
+        #y = self.relu(self.in2(self.conv2(y)))
+        #y = self.relu(self.in3(self.conv3(y)))
+        #y = self.conv1(in_X)
+        y = self.conv2(y)
+        y = self.conv3(y)
         y = self.res1(y)
         y = self.res2(y)
         y = self.res3(y)
@@ -77,7 +83,7 @@ class ResNeXtBottleneck(nn.Module):
     RexNeXt bottleneck type C (https://github.com/facebookresearch/ResNeXt/blob/master/models/resnext.lua)
     Replaced batch-normalization with instance-normalization
     """
-    def __init__(self, in_channels, out_channels, stride=1, cardinality=32, widen_factor=16):
+    def __init__(self, in_channels, out_channels, stride=1, cardinality=8, widen_factor=4):
         """ Constructor
         Args:
             in_channels: input channel dimensionality
@@ -90,7 +96,8 @@ class ResNeXtBottleneck(nn.Module):
         D = cardinality * out_channels // widen_factor
         self.conv_reduce = nn.Conv2d(in_channels, D, kernel_size=1, stride=1, padding=0, bias=False)
         self.bn_reduce = nn.InstanceNorm2d(D)
-        self.conv_conv = nn.Conv2d(D, D, kernel_size=3, stride=stride, padding=1, groups=cardinality, bias=False)
+        #self.conv_conv = nn.Conv2d(D, D, kernel_size=3, stride=stride, padding=1, groups=cardinality, bias=False)
+        self.conv_conv = ConvLayer(D, D, kernel_size=3, stride=stride, groups=cardinality, bias=False)
         self.bn = nn.InstanceNorm2d(D)
         self.conv_expand = nn.Conv2d(D, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.bn_expand = nn.InstanceNorm2d(out_channels)
@@ -100,6 +107,8 @@ class ResNeXtBottleneck(nn.Module):
             self.shortcut.add_module('shortcut_conv', nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, padding=0, bias=False))
             self.shortcut.add_module('shortcut_bn', nn.InstanceNorm2d(out_channels))
 
+        self.se_layer = SELayer(out_channels)
+
     def forward(self, x):
         bottleneck = self.conv_reduce.forward(x)
         bottleneck = F.relu(self.bn_reduce.forward(bottleneck), inplace=True)
@@ -108,4 +117,6 @@ class ResNeXtBottleneck(nn.Module):
         bottleneck = self.conv_expand.forward(bottleneck)
         bottleneck = self.bn_expand.forward(bottleneck)
         residual = self.shortcut.forward(x)
-        return F.relu(residual + bottleneck, inplace=True)
+        regular_output = F.relu(residual + bottleneck, inplace=True)
+        #return regular_output
+        return self.se_layer(regular_output)

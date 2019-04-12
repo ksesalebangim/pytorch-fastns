@@ -11,6 +11,7 @@ from torchvision import datasets
 from torchvision import transforms
 import utils
 from transformer_net import TransformerNet
+from networks import ResNeXtNet
 from PIL import Image
 import os
 import numpy as np
@@ -22,6 +23,7 @@ import pygame
 import os
 import time
 from mytimer import mytimer
+from utils import fix_model
 import json
 from time import sleep
 
@@ -59,7 +61,14 @@ def check_paths(args):
         sys.exit(1)
 
 
-def stylize(modelsJsonPath):
+
+def stylize(modelsJsonPath, model=None):
+    # TODO: hack for local testing
+    if model is not None:
+        mTimer.setBuffer(100000)
+        stylizeModel(model, None, None)
+        return
+
     f = open(modelsJsonPath,"r")
     data = f.read()
     f.close()
@@ -84,16 +93,14 @@ def stylize(modelsJsonPath):
                 return
 
 
-def stylizeModel(model,content_scale=1, sleep_time=0):
+def stylizeModel(model,content_scale=None, sleep_time=0):
     img = None
     postE = NoEffect()#trail(10)
     preE = resize()
     style_model = TransformerNet()
-    style_model.load_state_dict(torch.load(model))
+    style_model.load_state_dict(fix_model(torch.load(model)))
     cam = cv2.VideoCapture(0)
 
-
-    contentScale = content_scale
     preEprocess =  preE.process
     utilsTensor_load_rgbimage_cam = utils.tensor_load_rgbimage_cam
     utils_preprocess_batch = utils.preprocess_batch
@@ -118,63 +125,70 @@ def stylizeModel(model,content_scale=1, sleep_time=0):
     #original=cv2.flip(original,1)
     #original = preEprocess(original)
 
-    while True:
-        # !!! Adding a fake sleep so the experience would look better
-        # TODO - better fade one frame into the other
-        if(sleep_time):
-            sleep(sleep_time) 
+    with torch.no_grad():
+        # trace once for great justice
         ret_val, original = cam.read()
-        original=cv2.flip(original,1)
-        #original = preEprocess(original)
 
-        content_image = utilsTensor_load_rgbimage_cam(original, scale=contentScale)
+        content_image = utils.tensor_load_rgbimage_cam(original, scale=content_scale)
         content_image = content_image.unsqueeze(0)
-        #if args.cuda:
         content_image = content_image.cuda()
-        content_image = Variable(utils_preprocess_batch(content_image), volatile=True)
+        content_image = utils.preprocess_batch(content_image)
 
-        output = style_model(content_image)
+        traced_net = torch.jit.trace(style_model,(content_image,))
 
-        res = utils_tensor_ret_bgrimage(output.data[0], 1)
-        #res = postE_process(original,postNN)
-        res = cv2_resize(res, mysize , interpolation=cv2_INTER_CUBIC)
+        # now loop
+        while True:
+            if(sleep_time):
+                sleep(sleep_time)
 
-        #try to move this up
-        
+            ret_val, original = cam.read()
+            # TODO: hack
+            #original = original[140:340, 160:480]
+            #original = cv2.resize(original, (480,640), cv2.INTER_LINEAR)
+            #original = cv2.resize(original, (1080,1920), cv2.INTER_LINEAR)
+            # TODO: re-enable? make parameter?
+            #original = cv2.flip(original, 1)
+            #original = preEprocess(original)
 
-        cv2_imshow('frame',res)
-        pressed_key = cv2_waitKey(1) & 0xFF;
-        if pressed_key == ord('q'):
-            return True
-        # On space move to next model
-        elif pressed_key == 32:
-            return False
+            content_image = utils.tensor_load_rgbimage_cam(original, scale=content_scale)
+            content_image = content_image.unsqueeze(0)
+            content_image = content_image.cuda()
+            content_image = utils.preprocess_batch(content_image)
 
-        delayTest += 1
-        if delayTest % 30 == 0:
+            #output = style_model(content_image2)
+            output = traced_net(content_image)
 
-            delayTest = 0
-            if mTimer.isTransition():
-                #cv2.waitKey(1)
-                return
+            res = utils.tensor_ret_bgrimage(output[0])
+            #res = postE_process(original,postNN)
 
-        """if cv2_waitKey(1) & 0xFF == ord('w'):
-            preE.addSize(0.5)
-        if cv2_waitKey(1) & 0xFF == ord('s'):
-            preE.addSize(-0.5)"""
+            res = cv2_resize(res, mysize , interpolation=cv2_INTER_CUBIC)
 
-
-
-
+            #try to move this up
     
+            cv2_imshow('frame',res)
+            pressed_key = cv2_waitKey(1) & 0xFF;
+            if pressed_key == ord('q'):
+                return True
+            # On space move to next model
+            elif pressed_key == 32:
+                return False
 
+            delayTest += 1
+            if delayTest % 30 == 0:
+
+                delayTest = 0
+                if mTimer.isTransition():
+                    #cv2.waitKey(1)
+                    return
 
 def main():
     main_arg_parser = argparse.ArgumentParser(description="parser for webcam")
     main_arg_parser.add_argument("--content-scale", type=float, default=None,
                                  help="factor for scaling down the content image")
-    main_arg_parser.add_argument("--model", type=str, required=True,
-                                 help="saved model to be used for stylizing the image")
+    main_arg_parser.add_argument("--model", type=str, required=False,
+                                 help="saved model to be used for stylizing the image. overrides config file")
+    main_arg_parser.add_argument("--config-path", type=str, default="/media/midburn/benson2/pytorch/pytorch-fastns/conf/1.json",
+                                 help="path to config json")
     main_arg_parser.add_argument("--cuda", type=int, default=1,
                                  help="set it to 1 for running on GPU, 0 for CPU")
     main_arg_parser.add_argument("--cudnn-benchmark", action="store_true", help="use cudnn benchmark mode")
@@ -191,7 +205,7 @@ def main():
 
     try:
         #stylize(args)
-        stylize("/media/midburn/benson2/pytorch/pytorch-fastns/conf/1.json")
+        stylize(args.config_path, args.model)
     finally:
         cv2.destroyAllWindows()
 

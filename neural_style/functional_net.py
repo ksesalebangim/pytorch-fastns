@@ -5,20 +5,11 @@ import numpy as np
 
 
 class TransformerNet(torch.nn.Module):
-    """
-    loss after 10k1 2-epoch train (old instancenorm):
-    content: 446286.357956  style: 136966.180045    total: 583252.538001
-    time to train: 19m
-
-    batch size 4:
-    (new instancenorm, affine=False): content: 476945.980025  style: 161717.926294    total: 638663.906319
-    affine=True is slightly worse
-
-    SENet residual blocks:" shit."
-    """
     def __init__(self):
         super(TransformerNet, self).__init__()
 
+        self.conv1_weights = nn.Parameter(torch.Tensor(32,3,9,9))
+        self.conv1_biases = nn.Parameter(torch.Tensor(32))
         # Initial convolution layers
         self.conv1 = ConvLayer(3, 32, kernel_size=9, stride=1)
         self.in1 = InstanceNormalization(32)
@@ -42,7 +33,7 @@ class TransformerNet(torch.nn.Module):
         self.deconv3 = ConvLayer(32, 3, kernel_size=9, stride=1)
 
         # Non-linearities
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
 
     def forward(self, X):
         in_X = X
@@ -57,33 +48,15 @@ class TransformerNet(torch.nn.Module):
         y = self.relu(self.in4(self.deconv1(y)))
         y = self.relu(self.in5(self.deconv2(y)))
         y = self.deconv3(y)
-
         return y
 
 
-class SELayer(nn.Module):
-    def __init__(self, channel, reduction=16):
-        super(SELayer, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-                nn.Linear(channel, reduction),
-                nn.ReLU(inplace=True),
-                nn.Linear(reduction, channel),
-                nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        return x * y
-
 class ConvLayer(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, groups=1, bias=True):
+    def __init__(self, in_channels, out_channels, kernel_size, stride):
         super(ConvLayer, self).__init__()
         reflection_padding = int(np.floor(kernel_size / 2))
         self.reflection_pad = nn.ReflectionPad2d(reflection_padding)
-        self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride, groups=1, bias=bias)
+        self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride)
 
     def forward(self, x):
         out = self.reflection_pad(x)
@@ -103,17 +76,15 @@ class ResidualBlock(torch.nn.Module):
         self.in1 = InstanceNormalization(channels)
         self.conv2 = ConvLayer(channels, channels, kernel_size=3, stride=1)
         self.in2 = InstanceNormalization(channels)
-        #self.se = SELayer(channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         residual = x
         out = self.relu(self.in1(self.conv1(x)))
         out = self.in2(self.conv2(out))
         out = out + residual
-        #out = self.se(out) + residual
-        #return self.relu(out)
         return out
+
 
 class UpsampleConvLayer(torch.nn.Module):
     """UpsampleConvLayer
@@ -139,19 +110,15 @@ class UpsampleConvLayer(torch.nn.Module):
         out = self.conv2d(out)
         return out
 
-#TODO: hack
-#InstanceNormalization = nn.InstanceNorm2d
-def InstanceNormalization(channels):
-    return nn.InstanceNorm2d(channels, affine=False)
 
-class InstanceNormalization_(torch.nn.Module):
+class InstanceNormalization(torch.nn.Module):
     """InstanceNormalization
     Improves convergence of neural-style.
     ref: https://arxiv.org/pdf/1607.08022.pdf
     """
 
     def __init__(self, dim, eps=1e-9):
-        super(InstanceNormalization_, self).__init__()
+        super(InstanceNormalization, self).__init__()
         self.scale = nn.Parameter(torch.FloatTensor(dim))
         self.shift = nn.Parameter(torch.FloatTensor(dim))
         self.eps = eps
